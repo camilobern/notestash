@@ -24,6 +24,7 @@ const TagVisualization: React.FC<TagVisualizationProps> = ({ relationships }) =>
   const [modalOpen, setModalOpen] = React.useState(false);
   const [modalTag, setModalTag] = React.useState<string | null>(null);
   const [modalNotes, setModalNotes] = React.useState<Note[]>([]);
+  const [activeCard, setActiveCard] = React.useState<number>(0);
 
   useEffect(() => {
     if (!relationships.length || !svgRef.current) return;
@@ -178,6 +179,7 @@ const TagVisualization: React.FC<TagVisualizationProps> = ({ relationships }) =>
       setModalTag(d.id);
       setModalOpen(true);
       setModalNotes([]);
+      setActiveCard(0);
       try {
         const notes = await notesApi.getNotesByTag(d.id);
         setModalNotes(notes);
@@ -267,15 +269,115 @@ const TagVisualization: React.FC<TagVisualizationProps> = ({ relationships }) =>
             {modalNotes.length === 0 ? (
               <p>No notes found.</p>
             ) : (
-              <ul>
-                {modalNotes.map(note => (
-                  <li key={note.id} style={{ marginBottom: 12 }}>
-                    <strong>{note.title}</strong>
-                    <div style={{ fontSize: 12, color: '#888' }}>{note.tags.join(', ')}</div>
-                    <div>{note.content}</div>
-                  </li>
-                ))}
-              </ul>
+              <div style={{
+                position: 'relative',
+                width: '260px',
+                height: '180px',
+                margin: '40px auto 20px',
+                pointerEvents: 'none',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}>
+                {/* Left arrow */}
+                {modalNotes.length > 1 && (
+                  <button
+                    style={{
+                      position: 'absolute',
+                      left: '-36px',
+                      top: '50%',
+                      transform: 'translateY(-50%)',
+                      zIndex: 100,
+                      pointerEvents: 'auto',
+                      background: '#fff',
+                      border: '1px solid #ccc',
+                      borderRadius: '50%',
+                      width: 28,
+                      height: 28,
+                      fontSize: 18,
+                      cursor: 'pointer',
+                      boxShadow: '0 1px 4px rgba(0,0,0,0.08)'
+                    }}
+                    onClick={e => {
+                      e.stopPropagation();
+                      setActiveCard((prev) => (prev - 1 + modalNotes.length) % modalNotes.length);
+                    }}
+                  >
+                    {'<'}
+                  </button>
+                )}
+                {modalNotes.map((note, i) => {
+                  const total = modalNotes.length;
+                  const spread = Math.min(30, 7 * (total - 1)); // max 30deg spread
+                  const base = -spread / 2;
+                  const rotate = base + (spread / (total === 1 ? 1 : total - 1)) * i;
+                  const offset = 18 + 3 * i;
+                  // Bring active card to front, less rotated, and slightly scaled up
+                  const isActive = i === activeCard;
+                  const z = isActive ? 999 : i;
+                  const scale = isActive ? 1.08 : 1;
+                  const activeRotate = isActive ? 0 : rotate;
+                  const activeOffset = isActive ? 0 : offset;
+                  return (
+                    <div
+                      key={note.id}
+                      style={{
+                        position: 'absolute',
+                        left: '50%',
+                        top: '50%',
+                        width: '180px',
+                        minHeight: '80px',
+                        background: '#fff',
+                        border: '1px solid #e0e0e0',
+                        borderRadius: '8px',
+                        boxShadow: '0 2px 8px rgba(0,0,0,0.10)',
+                        padding: '12px',
+                        transform: `translate(-50%, -50%) rotate(${activeRotate}deg) translateY(-${activeOffset}px) scale(${scale})`,
+                        zIndex: z,
+                        pointerEvents: 'auto',
+                        transition: 'transform 0.3s, z-index 0s',
+                        overflow: 'hidden',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        justifyContent: 'center',
+                        cursor: isActive ? 'default' : 'pointer',
+                      }}
+                      onClick={() => !isActive && setActiveCard(i)}
+                    >
+                      <div style={{ fontWeight: 600, fontSize: 15, marginBottom: 4, wordBreak: 'break-word' }}>{note.title}</div>
+                      <div style={{ fontSize: 11, color: '#888', marginBottom: 4, wordBreak: 'break-word' }}>{note.tags.join(', ')}</div>
+                      <div style={{ fontSize: 13, color: '#222', wordBreak: 'break-word' }}>{note.content}</div>
+                    </div>
+                  );
+                })}
+                {/* Right arrow */}
+                {modalNotes.length > 1 && (
+                  <button
+                    style={{
+                      position: 'absolute',
+                      right: '-36px',
+                      top: '50%',
+                      transform: 'translateY(-50%)',
+                      zIndex: 100,
+                      pointerEvents: 'auto',
+                      background: '#fff',
+                      border: '1px solid #ccc',
+                      borderRadius: '50%',
+                      width: 28,
+                      height: 28,
+                      fontSize: 18,
+                      cursor: 'pointer',
+                      boxShadow: '0 1px 4px rgba(0,0,0,0.08)'
+                    }}
+                    onClick={e => {
+                      e.stopPropagation();
+                      setActiveCard((prev) => (prev + 1) % modalNotes.length);
+                    }}
+                  >
+                    {'>'}
+                  </button>
+                )}
+              </div>
             )}
             <button onClick={() => setModalOpen(false)} style={{ marginTop: 16 }}>Close</button>
           </div>
