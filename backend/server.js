@@ -18,6 +18,18 @@ const openai = new OpenAI({
 
 const chroma = new ChromaClient();
 
+// Custom embedding function that does nothing (we handle embeddings with OpenAI)
+class NoOpEmbeddingFunction {
+  constructor() {
+    this.name = "NoOpEmbeddingFunction";
+  }
+  
+  async generate(texts) {
+    // Return empty embeddings since we provide them manually
+    return texts.map(() => []);
+  }
+}
+
 const db = new sqlite3.Database('./notes.db');
 
 db.serialize(() => {
@@ -113,12 +125,16 @@ async function calculateAllTagSimilarities(tags) {
     let collection;
     try {
       collection = await chroma.getCollection({ name: "tag-embeddings" });
-      await collection.delete(); // Clear existing data
+      // Clear existing data by deleting and recreating
+      await chroma.deleteCollection({ name: "tag-embeddings" });
     } catch (error) {
-      // Collection doesn't exist, create it
+      // Collection doesn't exist, which is fine
     }
     
-    collection = await chroma.createCollection({ name: "tag-embeddings" });
+    collection = await chroma.createCollection({ 
+      name: "tag-embeddings",
+      embeddingFunction: new NoOpEmbeddingFunction()
+    });
 
     // Generate embeddings for all tags
     const tagTexts = tags.map(tag => tag.name);
@@ -300,7 +316,7 @@ app.post('/api/tags/calculate-relationships-fast', async (req, res) => {
       });
       
       await Promise.all(insertPromises);
-      res.json({ message: 'Relationships calculated successfully with vectors', count: relationships.length });
+      res.json({ message: 'Relationships calculated successfully', count: relationships.length });
     });
   } catch (error) {
     console.error('Error calculating relationships:', error);
