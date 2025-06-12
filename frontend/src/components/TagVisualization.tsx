@@ -34,6 +34,57 @@ const TagVisualization: React.FC<TagVisualizationProps> = ({ relationships }) =>
     const width = 800;
     const height = 600;
 
+    // Create a container group for all visualization elements
+    const g = svg.append("g");
+
+    // Add zoom behavior
+    const zoom = d3.zoom<SVGSVGElement, unknown>()
+      .scaleExtent([0.1, 4])
+      .on("zoom", (event) => {
+        g.attr("transform", event.transform);
+      });
+
+    // Apply zoom behavior to SVG
+    svg.call(zoom);
+
+    // Add zoom controls
+    const zoomControls = svg.append("g")
+      .attr("class", "zoom-controls")
+      .attr("transform", `translate(${width - 100}, 20)`);
+
+    zoomControls.append("rect")
+      .attr("width", 80)
+      .attr("height", 60)
+      .attr("rx", 5)
+      .attr("fill", "#f0f0f0")
+      .attr("stroke", "#ccc");
+
+    zoomControls.append("text")
+      .attr("x", 40)
+      .attr("y", 25)
+      .attr("text-anchor", "middle")
+      .attr("cursor", "pointer")
+      .text("+")
+      .style("font-size", "20px")
+      .on("click", () => {
+        svg.transition()
+          .duration(300)
+          .call(zoom.scaleBy, 1.3);
+      });
+
+    zoomControls.append("text")
+      .attr("x", 40)
+      .attr("y", 50)
+      .attr("text-anchor", "middle")
+      .attr("cursor", "pointer")
+      .text("-")
+      .style("font-size", "20px")
+      .on("click", () => {
+        svg.transition()
+          .duration(300)
+          .call(zoom.scaleBy, 0.7);
+      });
+
     const nodes: Node[] = [];
     const nodeMap = new Map<string, Node>();
     const links: Link[] = [];
@@ -65,7 +116,7 @@ const TagVisualization: React.FC<TagVisualizationProps> = ({ relationships }) =>
       .force("charge", d3.forceManyBody().strength(-300))
       .force("center", d3.forceCenter(width / 2, height / 2));
 
-    const link = svg.append("g")
+    const link = g.append("g")
       .attr("stroke", "#999")
       .attr("stroke-opacity", 0.6)
       .selectAll("line")
@@ -73,7 +124,7 @@ const TagVisualization: React.FC<TagVisualizationProps> = ({ relationships }) =>
       .join("line")
       .attr("stroke-width", d => Math.sqrt(d.value * 10));
 
-    const node = svg.append("g")
+    const node = g.append("g")
       .attr("stroke", "#fff")
       .attr("stroke-width", 1.5)
       .selectAll("circle")
@@ -97,7 +148,7 @@ const TagVisualization: React.FC<TagVisualizationProps> = ({ relationships }) =>
           d.fy = null;
         }) as any);
 
-    const label = svg.append("g")
+    const label = g.append("g")
       .selectAll("text")
       .data(nodes)
       .join("text")
@@ -135,6 +186,13 @@ const TagVisualization: React.FC<TagVisualizationProps> = ({ relationships }) =>
       }
     });
 
+    // Add double-click to reset zoom
+    svg.on("dblclick.zoom", () => {
+      svg.transition()
+        .duration(300)
+        .call(zoom.transform, d3.zoomIdentity);
+    });
+
     return () => {
       simulation.stop();
     };
@@ -143,12 +201,42 @@ const TagVisualization: React.FC<TagVisualizationProps> = ({ relationships }) =>
   return (
     <div className="tag-visualization">
       <h2>Tag Relationships</h2>
-      <svg
-        ref={svgRef}
-        width={800}
-        height={600}
-        style={{ border: '1px solid #ccc' }}
-      />
+      {relationships.length === 0 ? (
+        <div style={{ 
+          padding: '20px', 
+          textAlign: 'center', 
+          background: '#f5f5f5', 
+          borderRadius: '4px',
+          margin: '20px 0'
+        }}>
+          <p>No tag relationships to display.</p>
+          <p style={{ fontSize: '14px', color: '#666', marginTop: '10px' }}>
+            Click the "Calculate Tag Relationships" button above to generate the visualization.
+          </p>
+        </div>
+      ) : (
+        <div style={{ position: 'relative' }}>
+          <svg
+            ref={svgRef}
+            width={800}
+            height={600}
+            style={{ border: '1px solid #ccc' }}
+          />
+          <div style={{ 
+            position: 'absolute', 
+            bottom: '10px', 
+            left: '10px', 
+            background: '#fff', 
+            padding: '5px', 
+            borderRadius: '4px',
+            fontSize: '12px',
+            color: '#666',
+            border: '1px solid #ccc'
+          }}>
+            Tip: Double-click to reset zoom
+          </div>
+        </div>
+      )}
       {modalOpen && (
         <div style={{
           position: 'fixed',
