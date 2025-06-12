@@ -3,6 +3,7 @@ const cors = require('cors');
 const sqlite3 = require('sqlite3').verbose();
 const { v4: uuidv4 } = require('uuid');
 const OpenAI = require('openai');
+const { ChromaClient } = require('chromadb');
 require('dotenv').config();
 
 const app = express();
@@ -14,6 +15,8 @@ app.use(express.json());
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
+
+const chroma = new ChromaClient();
 
 const db = new sqlite3.Database('./notes.db');
 
@@ -100,6 +103,70 @@ async function calculateTagSimilarity(tag1, tag2) {
   } catch (error) {
     console.error('Error calculating similarity:', error);
     return 0;
+  }
+}
+
+// Vector-based similarity calculation using Chroma
+async function calculateAllTagSimilarities(tags) {
+  try {
+    // Get or create collection
+    let collection;
+    try {
+      collection = await chroma.getCollection({ name: "tag-embeddings" });
+      await collection.delete(); // Clear existing data
+    } catch (error) {
+      // Collection doesn't exist, create it
+    }
+    
+    collection = await chroma.createCollection({ name: "tag-embeddings" });
+
+    // Generate embeddings for all tags
+    const tagTexts = tags.map(tag => tag.name);
+    const response = await openai.embeddings.create({
+      model: "text-embedding-3-small",
+      input: tagTexts,
+    });
+
+    const embeddings = response.data.map(item => item.embedding);
+    const ids = tags.map(tag => tag.id);
+
+    // Store embeddings in Chroma
+    await collection.add({
+      ids: ids,
+      embeddings: embeddings,
+      metadatas: tags.map(tag => ({ name: tag.name })),
+      documents: tagTexts
+    });
+
+    // Use Chroma's built-in similarity search
+    const relationships = [];
+    
+    for (const tag of tags) {
+      const results = await collection.query({
+        queryEmbeddings: [embeddings[tags.findIndex(t => t.id === tag.id)]],
+        nResults: tags.length - 1, // Get all other tags
+        include: ['distances', 'metadatas']
+      });
+
+      // Convert distances to similarities and filter
+      results.distances[0].forEach((distance, index) => {
+        const similarity = 1 - distance; // Convert distance to similarity
+        const otherTagId = results.ids[0][index];
+        
+        if (similarity > 0.3 && tag.id < otherTagId) { // Avoid duplicates
+          relationships.push({
+            tag1_id: tag.id,
+            tag2_id: otherTagId,
+            similarity: similarity
+          });
+        }
+      });
+    }
+
+    return relationships;
+  } catch (error) {
+    console.error('Error calculating vector similarity:', error);
+    return [];
   }
 }
 
@@ -201,6 +268,47 @@ app.get('/api/tags/relationships', (req, res) => {
   });
 });
 
+// New fast vector-based endpoint
+app.post('/api/tags/calculate-relationships-fast', async (req, res) => {
+  try {
+    db.all('SELECT * FROM tags', async (err, tags) => {
+      if (err) {
+        res.status(500).json({ error: err.message });
+        return;
+      }
+      
+      if (tags.length === 0) {
+        res.json({ message: 'No tags found', count: 0 });
+        return;
+      }
+
+      console.log(`Calculating relationships for ${tags.length} tags using vector embeddings`);
+      const relationships = await calculateAllTagSimilarities(tags);
+      
+      // Insert all relationships
+      const insertPromises = relationships.map(rel => {
+        return new Promise((resolve, reject) => {
+          db.run(
+            'INSERT OR REPLACE INTO tag_relationships (tag1_id, tag2_id, similarity) VALUES (?, ?, ?)',
+            [rel.tag1_id, rel.tag2_id, rel.similarity],
+            (err) => {
+              if (err) reject(err);
+              else resolve();
+            }
+          );
+        });
+      });
+      
+      await Promise.all(insertPromises);
+      res.json({ message: 'Relationships calculated successfully with vectors', count: relationships.length });
+    });
+  } catch (error) {
+    console.error('Error calculating relationships:', error);
+    res.status(500).json({ error: 'Failed to calculate relationships' });
+  }
+});
+
+// Original slower endpoint (kept for comparison)
 app.post('/api/tags/calculate-relationships', async (req, res) => {
   try {
     db.all('SELECT * FROM tags', async (err, tags) => {
