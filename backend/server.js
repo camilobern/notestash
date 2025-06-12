@@ -26,7 +26,7 @@ class NoOpEmbeddingFunction {
   
   async generate(texts) {
     // Return empty embeddings since we provide them manually
-    return texts.map(() => []);
+    return texts.map(() => new Array(1536).fill(0)); // text-embedding-3-small has 1536 dimensions
   }
 }
 
@@ -402,6 +402,111 @@ app.post('/api/tags/calculate-relationships', async (req, res) => {
   } catch (error) {
     console.error('Error calculating relationships:', error);
     res.status(500).json({ error: 'Failed to calculate relationships' });
+  }
+});
+
+// Search endpoint using embeddings
+app.post('/api/notes/search', async (req, res) => {
+  const { query } = req.body;
+  
+  if (!query || query.trim() === '') {
+    res.status(400).json({ error: 'Query is required' });
+    return;
+  }
+
+  try {
+    // Get all notes from database
+    db.all(`
+      SELECT n.*, GROUP_CONCAT(t.name) as tags
+      FROM notes n
+      LEFT JOIN note_tags nt ON n.id = nt.note_id
+      LEFT JOIN tags t ON nt.tag_id = t.id
+      GROUP BY n.id
+      ORDER BY n.updated_at DESC
+    `, async (err, notes) => {
+      if (err) {
+        res.status(500).json({ error: err.message });
+        return;
+      }
+
+      if (notes.length === 0) {
+        res.json([]);
+        return;
+      }
+
+      try {
+        // Get or create collection for notes
+        let collection;
+        try {
+          collection = await chroma.getCollection({ name: "note-embeddings", embeddingFunction: new NoOpEmbeddingFunction() });
+          await chroma.deleteCollection({ name: "note-embeddings" });
+        } catch (error) {
+          // Collection doesn't exist, which is fine
+        }
+        collection = await chroma.createCollection({ name: "note-embeddings", embeddingFunction: new NoOpEmbeddingFunction() });
+
+        // Prepare note content for embedding (title + content + tags)
+        const noteTexts = notes.map(note => {
+          const tags = note.tags ? note.tags.split(',').join(' ') : '';
+          return `${note.title} ${note.content} ${tags}`;
+        });
+
+
+        // Generate embeddings for all notes and the query
+        const allTexts = [...noteTexts, query];
+        const response = await openai.embeddings.create({
+          model: "text-embedding-3-small",
+          input: allTexts,
+        });
+
+        const noteEmbeddings = response.data.slice(0, -1).map(item => item.embedding);
+        const queryEmbedding = response.data[response.data.length - 1].embedding;
+
+
+        // Store note embeddings in Chroma
+        await collection.add({
+          ids: notes.map(note => note.id),
+          embeddings: noteEmbeddings,
+          metadatas: notes.map(note => ({ 
+            title: note.title,
+            tags: note.tags || ''
+          })),
+          documents: noteTexts
+        });
+
+        // Search for similar notes
+        const results = await collection.query({
+          queryEmbeddings: [queryEmbedding],
+          nResults: Math.min(10, notes.length), // Return top 10 results
+          include: ['distances', 'metadatas', 'documents']
+        });
+
+
+        // Format results with similarity scores
+        const searchResults = results.ids[0].map((noteId, index) => {
+          const note = notes.find(n => n.id === noteId);
+          const maxDistance = 2; // adjust based on observed range
+          const similarity = 1 - (results.distances[0][index] / maxDistance);          
+          
+          return {
+            ...note,
+            tags: note.tags ? note.tags.split(',') : [],
+            similarity: similarity
+          };
+        }).filter(result => result.similarity > 0.2)
+         .sort((a, b) => b.similarity - a.similarity); // Sort by similarity descending
+
+
+
+        res.json(searchResults);
+      } catch (embeddingError) {
+        console.error('Error with embeddings:', embeddingError);
+        res.status(500).json({ error: 'Failed to perform semantic search' });
+      }
+    });
+  } catch (error) {
+    console.error('Error searching notes:', error);
+    res.status(500).json({ error: 'Failed to search notes' });
   }
 });
 
