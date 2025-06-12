@@ -22,6 +22,11 @@ export const notesApi = {
     const response = await api.post('/notes/search', { query });
     return response.data;
   },
+
+  getNotesByTag: async (tagName: string): Promise<Note[]> => {
+    const response = await api.get(`/notes/by-tag/${encodeURIComponent(tagName)}`);
+    return response.data;
+  },
 };
 
 export const tagsApi = {

@@ -510,6 +510,40 @@ app.post('/api/notes/search', async (req, res) => {
   }
 });
 
+app.get('/api/notes/by-tag/:tagName', (req, res) => {
+  const { tagName } = req.params;
+  db.get('SELECT id FROM tags WHERE name = ?', [tagName], (err, tagRow) => {
+    if (err) {
+      res.status(500).json({ error: err.message });
+      return;
+    }
+    if (!tagRow) {
+      res.json([]);
+      return;
+    }
+    const tagId = tagRow.id;
+    db.all(`
+      SELECT n.*, GROUP_CONCAT(t.name) as tags
+      FROM notes n
+      LEFT JOIN note_tags nt ON n.id = nt.note_id
+      LEFT JOIN tags t ON nt.tag_id = t.id
+      WHERE n.id IN (SELECT note_id FROM note_tags WHERE tag_id = ?)
+      GROUP BY n.id
+      ORDER BY n.updated_at DESC
+    `, [tagId], (err, rows) => {
+      if (err) {
+        res.status(500).json({ error: err.message });
+        return;
+      }
+      const notes = rows.map(row => ({
+        ...row,
+        tags: row.tags ? row.tags.split(',') : []
+      }));
+      res.json(notes);
+    });
+  });
+});
+
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });

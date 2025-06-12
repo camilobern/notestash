@@ -1,6 +1,8 @@
 import React, { useEffect, useRef } from 'react';
 import * as d3 from 'd3';
 import { TagRelationship } from '../types';
+import { notesApi } from '../api';
+import { Note } from '../types';
 
 interface TagVisualizationProps {
   relationships: TagRelationship[];
@@ -19,6 +21,9 @@ interface Link extends d3.SimulationLinkDatum<Node> {
 
 const TagVisualization: React.FC<TagVisualizationProps> = ({ relationships }) => {
   const svgRef = useRef<SVGSVGElement>(null);
+  const [modalOpen, setModalOpen] = React.useState(false);
+  const [modalTag, setModalTag] = React.useState<string | null>(null);
+  const [modalNotes, setModalNotes] = React.useState<Note[]>([]);
 
   useEffect(() => {
     if (!relationships.length || !svgRef.current) return;
@@ -117,6 +122,19 @@ const TagVisualization: React.FC<TagVisualizationProps> = ({ relationships }) =>
         .attr("y", d => d.y!);
     });
 
+    // Add click event to nodes
+    node.on('click', async (event, d) => {
+      setModalTag(d.id);
+      setModalOpen(true);
+      setModalNotes([]);
+      try {
+        const notes = await notesApi.getNotesByTag(d.id);
+        setModalNotes(notes);
+      } catch (e) {
+        setModalNotes([]);
+      }
+    });
+
     return () => {
       simulation.stop();
     };
@@ -131,6 +149,50 @@ const TagVisualization: React.FC<TagVisualizationProps> = ({ relationships }) =>
         height={600}
         style={{ border: '1px solid #ccc' }}
       />
+      {modalOpen && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          width: '100vw',
+          height: '100vh',
+          background: 'rgba(0,0,0,0.3)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1000
+        }}
+          onClick={() => setModalOpen(false)}
+        >
+          <div style={{
+            background: '#fff',
+            padding: 24,
+            borderRadius: 8,
+            minWidth: 400,
+            maxHeight: '80vh',
+            overflowY: 'auto',
+            boxShadow: '0 2px 16px rgba(0,0,0,0.2)'
+          }}
+            onClick={e => e.stopPropagation()}
+          >
+            <h3>Notes with tag: {modalTag}</h3>
+            {modalNotes.length === 0 ? (
+              <p>No notes found.</p>
+            ) : (
+              <ul>
+                {modalNotes.map(note => (
+                  <li key={note.id} style={{ marginBottom: 12 }}>
+                    <strong>{note.title}</strong>
+                    <div style={{ fontSize: 12, color: '#888' }}>{note.tags.join(', ')}</div>
+                    <div>{note.content}</div>
+                  </li>
+                ))}
+              </ul>
+            )}
+            <button onClick={() => setModalOpen(false)} style={{ marginTop: 16 }}>Close</button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -87,7 +87,7 @@ function App() {
   return (
     <div className="App">
       <header className="app-header">
-        <h1>Smart Notes</h1>
+        <h1>Note Stash</h1>
         <nav className="tabs">
           <button 
             className={activeTab === 'notes' ? 'active' : ''}
