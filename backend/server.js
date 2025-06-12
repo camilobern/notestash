@@ -209,22 +209,56 @@ app.post('/api/tags/calculate-relationships', async (req, res) => {
         return;
       }
       
-      const relationships = [];
+      // Limit processing to avoid excessive API calls
+      if (tags.length > 50) {
+        res.status(400).json({ error: 'Too many tags. Limit to 50 tags to avoid timeout.' });
+        return;
+      }
       
+      const relationships = [];
+      const batchSize = 5; // Process 5 comparisons at a time
+      
+      // Create all tag pairs
+      const tagPairs = [];
       for (let i = 0; i < tags.length; i++) {
         for (let j = i + 1; j < tags.length; j++) {
-          const similarity = await calculateTagSimilarity(tags[i].name, tags[j].name);
-          
-          if (similarity > 0.1) {
-            relationships.push({
-              tag1_id: tags[i].id,
-              tag2_id: tags[j].id,
-              similarity: similarity
-            });
-          }
+          tagPairs.push([tags[i], tags[j]]);
         }
       }
       
+      console.log(`Processing ${tagPairs.length} tag pairs in batches of ${batchSize}`);
+      
+      // Process in batches to avoid rate limits
+      for (let i = 0; i < tagPairs.length; i += batchSize) {
+        const batch = tagPairs.slice(i, i + batchSize);
+        
+        const batchPromises = batch.map(async ([tag1, tag2]) => {
+          try {
+            // Add small delay between requests
+            await new Promise(resolve => setTimeout(resolve, 100));
+            const similarity = await calculateTagSimilarity(tag1.name, tag2.name);
+            
+            if (similarity > 0.1) {
+              return {
+                tag1_id: tag1.id,
+                tag2_id: tag2.id,
+                similarity: similarity
+              };
+            }
+            return null;
+          } catch (error) {
+            console.error(`Error comparing ${tag1.name} and ${tag2.name}:`, error);
+            return null;
+          }
+        });
+        
+        const batchResults = await Promise.all(batchPromises);
+        relationships.push(...batchResults.filter(rel => rel !== null));
+        
+        console.log(`Processed batch ${Math.floor(i/batchSize) + 1}/${Math.ceil(tagPairs.length/batchSize)}`);
+      }
+      
+      // Insert all relationships
       const insertPromises = relationships.map(rel => {
         return new Promise((resolve, reject) => {
           db.run(
