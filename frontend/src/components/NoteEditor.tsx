@@ -30,12 +30,12 @@ const NoteEditor: React.FC<NoteEditorProps> = ({ onNoteCreated }) => {
 
   return (
     <div className="note-editor">
-      <h2>Create New Note</h2>
+      <h2>✨ Create New Note</h2>
       <form onSubmit={handleSubmit}>
         <div className="form-group">
           <input
             type="text"
-            placeholder="Note title..."
+            placeholder="✏️ Note title..."
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             disabled={isLoading}
@@ -43,7 +43,7 @@ const NoteEditor: React.FC<NoteEditorProps> = ({ onNoteCreated }) => {
         </div>
         <div className="form-group">
           <textarea
-            placeholder="Write your note here..."
+            placeholder="📝 Write your note here..."
             value={content}
             onChange={(e) => setContent(e.target.value)}
             rows={6}
@@ -51,7 +51,7 @@ const NoteEditor: React.FC<NoteEditorProps> = ({ onNoteCreated }) => {
           />
         </div>
         <button type="submit" disabled={isLoading || !title.trim() || !content.trim()}>
-          {isLoading ? 'Creating...' : 'Create Note'}
+          {isLoading ? '⏳ Creating...' : '🚀 Create Note'}
         </button>
       </form>
     </div>

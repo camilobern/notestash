@@ -87,31 +87,31 @@ function App() {
   return (
     <div className="App">
       <header className="app-header">
-        <h1>Note Stash</h1>
+        <h1>🧠 Note Stash</h1>
         <nav className="tabs">
           <button 
             className={activeTab === 'notes' ? 'active' : ''}
             onClick={() => setActiveTab('notes')}
           >
-            Notes
+            📝 Notes
           </button>
           <button 
             className={activeTab === 'search' ? 'active' : ''}
             onClick={() => setActiveTab('search')}
           >
-            Search
+            🔍 Search
           </button>
           <button 
             className={activeTab === 'visualization' ? 'active' : ''}
             onClick={() => setActiveTab('visualization')}
           >
-            Tag Visualization
+            🕸️ Tag Visualization
           </button>
           <button 
             className={activeTab === 'visualization-fast' ? 'active' : ''}
             onClick={() => setActiveTab('visualization-fast')}
           >
-            Tag Visualization (Fast)
+            ⚡ Tag Visualization (Fast)
           </button>
         </nav>
       </header>
