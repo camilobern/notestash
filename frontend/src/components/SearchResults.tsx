@@ -17,7 +17,7 @@ const SearchResults: React.FC<SearchResultsProps> = ({ results, isLoading }) => 
 
   return (
     <div className="search-results">
-      <h3>Search Results ({results.length})</h3>
+      <h3>🎯 Search Results ({results.length})</h3>
       {results.map((result) => (
         <div key={result.id} className="search-result-item">
           <div className="search-result-header">
@@ -36,13 +36,13 @@ const SearchResults: React.FC<SearchResultsProps> = ({ results, isLoading }) => 
             <div className="search-result-tags">
               {result.tags.map((tag, index) => (
                 <span key={index} className="tag">
-                  {tag}
+                  #{tag}
                 </span>
               ))}
             </div>
           )}
           <div className="search-result-meta">
-            Created: {new Date(result.created_at).toLocaleDateString()}
+            📅 Created: {new Date(result.created_at).toLocaleDateString()}
           </div>
         </div>
       ))}

@@ -128,7 +128,7 @@ function App() {
               <div className="search-input-group">
                 <input
                   type="text"
-                  placeholder="Search your notes..."
+                  placeholder="🔍 Search your notes..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="search-input"
@@ -138,7 +138,7 @@ function App() {
                   disabled={isSearching || !searchQuery.trim()}
                   className="search-button"
                 >
-                  {isSearching ? 'Searching...' : 'Search'}
+                  {isSearching ? '⏳ Searching...' : '🚀 Search'}
                 </button>
               </div>
             </form>
